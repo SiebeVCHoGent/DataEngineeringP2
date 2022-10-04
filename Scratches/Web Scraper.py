@@ -16,7 +16,6 @@ def scrape_website(url, done=[], depth=1):
 
     done.append(url if url[-1] != '/' else url[:-1])
 
-    Q = []
     html = requests.get(url).content
     soup = BeautifulSoup(html, 'html.parser')
     text = f" {url} {' '.join(soup.get_text().split())}"
@@ -27,7 +26,6 @@ def scrape_website(url, done=[], depth=1):
     sublinks = soup.find_all('a')
     sublinks = list(map(lambda x: x.get('href') if x.get('href') and not x.get('href').startswith('/') else done[0] + x.get('href'), sublinks))
 
-    Q.extend(sublinks)
     while len(sublinks):
         sublink = sublinks.pop()
         if sublink not in done and is_same_domain(done[0], sublink):
