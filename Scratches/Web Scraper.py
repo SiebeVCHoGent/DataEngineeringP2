@@ -9,6 +9,15 @@ def is_same_domain(url1, url2):
         return url1.split('/')[2] == url2.split('/')[2]
     return False
 
+
+def reformat_link(url, domain):
+    url = url.split('#')[0]
+    url = url.split('?')[0]
+    if url != '' and url.startswith('/'):
+        return domain + url
+    return url
+
+
 MAX_DEPTH = 3
 def scrape_website(url, done=[], depth=1):
     if url in done:
@@ -24,10 +33,10 @@ def scrape_website(url, done=[], depth=1):
         return text
 
     sublinks = soup.find_all('a')
-    sublinks = list(map(lambda x: x.get('href') if x.get('href') and not x.get('href').startswith('/') else done[0] + x.get('href'), sublinks))
+    sublinks = list(map(lambda x: reformat_link(x.get('href') if x.get('href') else '', done[0]), sublinks))
 
     while len(sublinks):
-        sublink = sublinks.pop()
+        sublink = sublinks.pop(0)
         if sublink not in done and is_same_domain(done[0], sublink):
             text += scrape_website(sublink, done, depth+1)
             done.append(sublink)
