@@ -1,0 +1,8 @@
+{
+  "postgres": {
+    "username": "postgres",
+    "password": "",
+    "host_name": "localhost",
+    "database": "dataengineering"
+  }
+}

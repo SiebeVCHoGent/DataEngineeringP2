@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 from time import sleep
 
 import pandas as pd
@@ -8,6 +9,14 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from OphalenVanNBB import get_values_from_nbb
 from WebScraper import scrape_website
 
+try:
+    with open('config.json') as config_file:
+        config = json.load(config_file)
+except FileNotFoundError as E:
+    raise FileNotFoundError(
+        E,
+        f"\nConfig file not found. Make sure 'config.json' is in the root directory of the project."
+    )
 
 def read_kmos():
     df = pd.read_csv("kmos.csv", sep=",")
@@ -16,7 +25,9 @@ def read_kmos():
     return df.to_dict(orient="records")
 
 base = declarative_base()
-engine = create_engine('postgresql://postgres:root@localhost/dataengineering')
+engine = create_engine(
+    f'postgresql://{config["postgres"]["username"]}:{config["postgres"]["password"]}@{config["postgres"]["host_name"]}/{config["postgres"]["database"]}'
+)
 conn = engine.connect()
 metadata = MetaData(engine)
 base.metadata.reflect(engine)
