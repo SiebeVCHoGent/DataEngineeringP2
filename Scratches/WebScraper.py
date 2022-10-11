@@ -39,14 +39,17 @@ def read_pdf(content_stream):
     return str(text)
 
 
-
 def is_same_domain(url1, url2):
+    if url1 is None or url2 is None:
+        return False
     if re.match(r'^(?:http|ftp)s?://', url2) is not None:
         return url1.split('/')[2] == url2.split('/')[2]
     return False
 
-
 def reformat_link(url, domain):
+    if url is None or domain is None:
+       raise ValueError('url or domain is None')
+
     url = url.split('#')[0]
     url = url.split('?')[0]
     if url != '' and url.startswith('/'):
@@ -86,4 +89,3 @@ def scrape_website(url, done=None, depth=1):
             text += scrape_website(sublink, done, depth+1)
             done.append(sublink)
     return text
-
