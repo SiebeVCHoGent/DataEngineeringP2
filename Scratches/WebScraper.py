@@ -66,7 +66,7 @@ def scrape_website(url, done=None, depth=1):
     done.append(url if url[-1] != '/' else url[:-1])
 
 
-    html = requests.get(url).content
+    html = requests.get(url, timeout=10).content
     # check if content is binary pdf
     if html[:4] == b'%PDF':
         text = read_pdf(html)
@@ -86,4 +86,3 @@ def scrape_website(url, done=None, depth=1):
             text += scrape_website(sublink, done, depth+1)
             done.append(sublink)
     return text
-

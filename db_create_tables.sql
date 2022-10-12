@@ -22,10 +22,10 @@ BEGIN
     IF NOT EXISTS(
         SELECT schema_name
           FROM information_schema.schemata
-          WHERE schema_name = 'pgcrypto'
+          WHERE schema_name = 'public'
       )
     THEN
-      EXECUTE 'CREATE SCHEMA pgcrypto';
+      EXECUTE 'CREATE SCHEMA public';
     END IF;
 
 END
