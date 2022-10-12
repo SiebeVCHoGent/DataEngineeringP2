@@ -48,7 +48,7 @@ def is_same_domain(url1, url2):
 
 def reformat_link(url, domain):
     if url is None or domain is None:
-       raise ValueError('url or domain is None')
+        raise ValueError('url or domain is None')
 
     url = url.split('#')[0]
     url = url.split('?')[0]
@@ -88,8 +88,4 @@ def scrape_website(url, done=None, depth=1):
         if sublink not in done and is_same_domain(done[0], sublink):
             text += scrape_website(sublink, done, depth+1)
             done.append(sublink)
-<<<<<<< HEAD
     return text
-=======
-    return text
->>>>>>> ce94376188794db77194d0369112aa353889b548
