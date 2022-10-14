@@ -2,7 +2,7 @@ from datetime import datetime
 import json
 from time import sleep
 from itertools import repeat
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 import pandas as pd
 from sqlalchemy import MetaData, create_engine
@@ -176,7 +176,7 @@ if __name__ == "__main__":
 
     kmos = read_kmos(True)
 
-    with ThreadPoolExecutor() as pp:
+    with ProcessPoolExecutor() as pp:
         print('pp')
         pp.map(add_fully_kmo, kmos, repeat(True), repeat(True))
 
