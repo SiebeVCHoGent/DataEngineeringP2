@@ -1,10 +1,12 @@
 from datetime import datetime
 import json
 from time import sleep
+from itertools import repeat
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 from sqlalchemy import MetaData, create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base, Session
 
 from OphalenVanNBB import get_values_from_nbb
 from WebScraper import scrape_website
@@ -20,7 +22,7 @@ except FileNotFoundError as E:
 
 
 def read_kmos(shuffle=False):
-    df = pd.read_csv("kmos.csv", sep=",")
+    df = pd.read_csv("kmo_test_300.csv", sep=",")
     # replace omzet with n.b. with None
     df['omzet'] = df['omzet'].replace('n.b.', None)
     # remove all points from omzet and balanstotaal
@@ -36,7 +38,7 @@ base = declarative_base()
 engine = create_engine(
     f'postgresql://{config["postgres"]["username"]}:{config["postgres"]["password"]}@{config["postgres"]["host_name"]}/{config["postgres"]["database"]}'
 )
-conn = engine.connect()
+
 metadata = MetaData(engine)
 base.metadata.reflect(engine)
 
@@ -65,116 +67,117 @@ class Jaarverslag(base):
     __table__ = base.metadata.tables['jaarverslag']
 
 
-Session = sessionmaker(bind=engine)
-session = Session()
-
 # clear all tables
 def clear_tables():
-    session.query(Jaarverslag).delete()
-    session.query(Website).delete()
-    session.query(Verslag).delete()
-    session.query(Kmo).delete()
-    session.query(Gemeente).delete()
-    session.query(Sector).delete()
-    session.commit()
-
-start = datetime.now()
+    session = Session(bind=engine, expire_on_commit=True)
+    with session.begin():
+        session.query(Jaarverslag).delete()
+        session.query(Website).delete()
+        session.query(Verslag).delete()
+        session.query(Kmo).delete()
+        session.query(Gemeente).delete()
+        session.query(Sector).delete()
+        session.commit()
 
 
 def add_fully_kmo(kmo, get_website_data=False, scrape_nbb=False):
-    # get gemeente and add it to database
-    postcode = str(kmo['Postcode'])
-    gemeente = session.query(Gemeente).filter(
-        Gemeente.postcode == postcode).first()
-    if gemeente is None:
-        gemeente = Gemeente(naam=kmo['Gemeente'], postcode=postcode)
-        session.add(gemeente)
+    session = Session(bind=engine, expire_on_commit=True)
+    with session.begin():
+        # get gemeente and add it to database
+        postcode = str(kmo['Postcode'])
+        try:
+            gemeente = session.query(Gemeente).filter(
+                Gemeente.postcode == postcode).first()
+        except Exception as E:
+            print(E)
+        if gemeente is None:
+            gemeente = Gemeente(naam=kmo['Gemeente'], postcode=postcode)
+            session.add(gemeente)
 
-    # get sector and add it to database
-    sector = session.query(Sector).filter(
-        Sector.naam == kmo['omschrijving']).first()
-    if sector is None:
-        sector = Sector(naam=kmo['omschrijving'])
-        session.add(sector)
+        # get sector and add it to database
+        sector = session.query(Sector).filter(
+            Sector.naam == kmo['omschrijving']).first()
+        if sector is None:
+            sector = Sector(naam=kmo['omschrijving'])
+            session.add(sector)
 
-    # get sector_id from db
-    sector_id = session.query(Sector).filter(
-        Sector.naam == kmo['omschrijving']).first().id
+        # get sector_id from db
+        sector_id = session.query(Sector).filter(
+            Sector.naam == kmo['omschrijving']).first().id
 
-    # add kmo to database
-    kmo_to_add = Kmo(
-        ondernemingsnummer=kmo['bvd_id'],
-        naam=kmo['Naam'],
-        email=kmo['email'],
-        telefoonnummer=kmo['Telefoon'],
-        adres=kmo['Adres'],
-        beursgenoteerd=kmo['Beursnotatie'] != 'Niet beursgenoteerd',
-        postcode=postcode,
-        sector=sector_id,
-        isB2B=('groothandel' in kmo['omschrijving'].lower()))
-    session.add(kmo_to_add)
+        # add kmo to database
+        kmo_to_add = Kmo(
+            ondernemingsnummer=kmo['bvd_id'],
+            naam=kmo['Naam'],
+            email=kmo['email'],
+            telefoonnummer=kmo['Telefoon'],
+            adres=kmo['Adres'],
+            beursgenoteerd=kmo['Beursnotatie'] != 'Niet beursgenoteerd',
+            postcode=postcode,
+            sector=sector_id,
+            isB2B=('groothandel' in kmo['omschrijving'].lower()))
+        session.add(kmo_to_add)
 
-    if scrape_nbb:
-        verslagen = get_values_from_nbb(kmo['bvd_id'])
-        for v in verslagen:
-            # create verslag
-            verslag = Verslag(ondernemingsnummer=kmo['bvd_id'], jaar=v['jaar'])
-            session.add(verslag)
-            verslag_id = session.query(Verslag).filter(
-                Verslag.ondernemingsnummer == kmo['bvd_id']).filter(
-                    Verslag.jaar == v['jaar']).first().id
-            jaarverslag = Jaarverslag(verslag=verslag_id,
-                                      id=v['id'],
-                                      url=v['url'])
-            session.add(jaarverslag)
+        if scrape_nbb:
+            verslagen = get_values_from_nbb(kmo['bvd_id'])
+            for v in verslagen:
+                # create verslag
+                verslag = Verslag(ondernemingsnummer=kmo['bvd_id'],
+                                  jaar=v['jaar'])
+                session.add(verslag)
+                verslag_id = session.query(Verslag).filter(
+                    Verslag.ondernemingsnummer == kmo['bvd_id']).filter(
+                        Verslag.jaar == v['jaar']).first().id
+                jaarverslag = Jaarverslag(verslag=verslag_id,
+                                          id=v['id'],
+                                          url=v['url'])
+                session.add(jaarverslag)
 
-    # check if verslag with current year exists in db
-    verslag = session.query(Verslag).filter(
-        Verslag.ondernemingsnummer == kmo['bvd_id']).filter(
-            Verslag.jaar == datetime.now().year).first()
-    if verslag is None:
-        verslag = Verslag(ondernemingsnummer=kmo['bvd_id'],
-                          jaar=datetime.now().year,
-                          omzet=kmo['omzet'],
-                          balanstotaal=kmo['balanstotaal'],
-                          aantalwerkenemers=kmo['werknemers']
-                          )
-        session.add(verslag)
+        # check if verslag with current year exists in db
         verslag = session.query(Verslag).filter(
             Verslag.ondernemingsnummer == kmo['bvd_id']).filter(
                 Verslag.jaar == datetime.now().year).first()
+        if verslag is None:
+            verslag = Verslag(ondernemingsnummer=kmo['bvd_id'],
+                              jaar=datetime.now().year,
+                              omzet=kmo['omzet'],
+                              balanstotaal=kmo['balanstotaal'],
+                              aantalwerkenemers=kmo['werknemers'])
+            session.add(verslag)
+            verslag = session.query(Verslag).filter(
+                Verslag.ondernemingsnummer == kmo['bvd_id']).filter(
+                    Verslag.jaar == datetime.now().year).first()
 
-    verslag_id = verslag.id
+        verslag_id = verslag.id
 
-    # create website
-    website_to_add = Website(verslag=verslag_id, url=kmo['Webadres'])
+        # create website
+        website_to_add = Website(verslag=verslag_id, url=kmo['Webadres'])
 
-    if get_website_data and kmo['Webadres']:
-        # scrape website
-        try:
-            text = scrape_website('https://' + str(kmo['Webadres']))
-            #remove NUL (0x00) characters from string
-            text = text.replace('0x00', '')
-            # update text in database in website table
-            website_to_add.tekst = text
-        except Exception as e:
-            print('Exception reading website ' + str(e))
-            website_to_add.url = ''
+        if get_website_data and kmo['Webadres']:
+            # scrape website
+            try:
+                text = scrape_website('https://' + str(kmo['Webadres']))
+                #remove NUL (0x00) characters from string
+                text = text.replace('0x00', '')
+                # update text in database in website table
+                website_to_add.tekst = text
+            except Exception as e:
+                print('Exception reading website ' + str(e))
+                website_to_add.url = ''
 
-    session.add(website_to_add)
-    session.commit()
+        session.add(website_to_add)
+        session.commit()
+    print('succes')
 
-clear_tables()
 
-kmos = read_kmos(True)
-for idx, kmo in enumerate(kmos[:50]):
-    try:
-        add_fully_kmo(kmo, get_website_data=True, scrape_nbb=True)
-        print(f"kmo {idx+1}: {kmo['Naam']}")
-        sleep(3)
-    except Exception as e:
-        print(f"Exception adding kmo {idx+1}: {kmo['Naam']}")
-        print(e)
-        pass
+if __name__ == "__main__":
+    start = datetime.now()
+    clear_tables()
 
-print(f"TIJD: {(datetime.now() - start).seconds} seconden")
+    kmos = read_kmos(True)
+
+    with ThreadPoolExecutor() as pp:
+        print('pp')
+        pp.map(add_fully_kmo, kmos, repeat(True), repeat(True))
+
+    print(f"TIJD: {(datetime.now() - start).seconds} seconden")
