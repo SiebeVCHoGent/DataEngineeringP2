@@ -78,6 +78,7 @@ def clear_tables():
         session.query(Gemeente).delete()
         session.query(Sector).delete()
         session.commit()
+    session.close()
 
 
 def add_fully_kmo(kmo, get_website_data=False, scrape_nbb=False):
@@ -167,17 +168,24 @@ def add_fully_kmo(kmo, get_website_data=False, scrape_nbb=False):
 
         session.add(website_to_add)
         session.commit()
-    print('succes')
+    session.close()
+    print(kmo['Naam'])
 
 
 if __name__ == "__main__":
+    multi = True
+
     start = datetime.now()
     clear_tables()
 
-    kmos = read_kmos(True)
+    kmos = read_kmos(False)
 
-    with ProcessPoolExecutor() as pp:
-        print('pp')
-        pp.map(add_fully_kmo, kmos, repeat(True), repeat(True))
+    if multi:
+        with ProcessPoolExecutor() as pp:
+            print('pp')
+            pp.map(add_fully_kmo, kmos, repeat(True), repeat(True))
+    else:
+        for kmo in kmos:
+            add_fully_kmo(kmo, True, True)
 
     print(f"TIJD: {(datetime.now() - start).seconds} seconden")

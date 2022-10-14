@@ -57,9 +57,30 @@ def reformat_link(url, domain):
     return url
 
 
-MAX_DEPTH = 3
+def remove_invalid_links(links, done):
+    banned_patterns = re.compile("(\W*(.svg)\W*)")
+    done_set = set(done)
+    cleaned_links = []
+
+    #print(done_set)
+
+    for link in links:
+        if link.endswith('/'):
+            link = link[:-1]
+        if not is_same_domain(done[0], link):
+            continue
+        if link in done_set:
+            continue
+        if link in ('', 'nan'):
+            continue
+        if re.match(banned_patterns, link):
+            continue
+        cleaned_links.append(link)
+    return cleaned_links
+
 
 def scrape_website(url, done=None, depth=1):
+    MAX_DEPTH = 3
     if done is None:
         done = list()
 
@@ -69,7 +90,7 @@ def scrape_website(url, done=None, depth=1):
     done.append(url if url[-1] != '/' else url[:-1])
 
 
-    html = requests.get(url, timeout=10).content
+    html = requests.get(url, timeout=50).content
     # check if content is binary pdf
     if html[:4] == b'%PDF':
         text = read_pdf(html)
@@ -81,11 +102,14 @@ def scrape_website(url, done=None, depth=1):
         return str(text)
 
     sublinks = soup.find_all('a')
-    sublinks = list(map(lambda x: reformat_link(x.get('href') if x.get('href') else '', done[0]), sublinks))
+    
+    sublinks = [
+        reformat_link(x.get('href') if x.get('href') else '', done[0])
+        for x in sublinks
+    ]
+    sublinks = remove_invalid_links(sublinks, done)
 
-    while len(sublinks) > 0:
-        sublink = sublinks.pop(0)
-        if sublink not in done and is_same_domain(done[0], sublink):
-            text += scrape_website(sublink, done, depth+1)
-            done.append(sublink)
+    for sublink in sublinks:
+        text += scrape_website(sublink, done, depth + 1)
+        done.append(sublink)
     return text
