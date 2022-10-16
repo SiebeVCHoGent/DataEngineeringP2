@@ -6,8 +6,39 @@ import fitz
 from PIL.Image import Image
 from bs4 import BeautifulSoup
 from pytesseract import pytesseract
+import requests
+from urllib.parse import urlparse
+from typing import List
+from requests_html import HTMLSession
+from duckpy import Client
+from sqlalchemy import true
 
 pytesseract.tesseract_cmd = r'C:\Program Files (x86)\Tesseract-OCR\tesseract'
+
+
+def get_source(url):
+    try:
+        session = HTMLSession()
+        response = session.get(url)
+        return response
+
+    except requests.exceptions.RequestException as e:
+        print(e)
+
+
+def scrape_google(company_name: str = None,
+                  company_city: str = None) -> List[str]:
+    '''
+    Takes a company name and city and returns a list of related weblinks.
+    '''
+
+    webquery = '"' + company_name + '"' + ' ' + company_city + ' ' + 'belgie'
+
+    client = Client()
+
+    links = [result.url for result in client.search(webquery, True)[:10]]
+    #links = ['{uri.scheme}://{uri.netloc}/'.format(uri=urlparse(url)) for url in links]
+    return links
 
 
 def read_pdf(content_stream):
@@ -46,6 +77,7 @@ def is_same_domain(url1, url2):
         return url1.split('/')[2] == url2.split('/')[2]
     return False
 
+
 def reformat_link(url, domain):
     if url is None or domain is None:
         raise ValueError('url or domain is None')
@@ -57,38 +89,32 @@ def reformat_link(url, domain):
     return url
 
 
-def remove_invalid_links(links, done):
-    banned_patterns = re.compile("(\W*(.svg)\W*)")
-    done_set = set(done)
+def remove_invalid_links(links, banned_domains):
     cleaned_links = []
 
-    #print(done_set)
-
     for link in links:
-        if link.endswith('/'):
-            link = link[:-1]
-        if not is_same_domain(done[0], link):
-            continue
-        if link in done_set:
-            continue
         if link in ('', 'nan'):
             continue
-        if re.match(banned_patterns, link):
+        if link.endswith('/'):
+            link = link[:-1]
+        if any([link for banned in banned_domains if banned in link]):
             continue
         cleaned_links.append(link)
     return cleaned_links
 
 
-def scrape_website(url, done=None, depth=1):
+def scrape_website(url, done=None, depth=1, banned_domains=None):
     MAX_DEPTH = 3
     if done is None:
         done = list()
 
+    if 'http' not in url:
+        url = f'https://{url}'
+
     if url in done:
-        return ''
+        return '', done
 
     done.append(url if url[-1] != '/' else url[:-1])
-
 
     html = requests.get(url, timeout=50).content
     # check if content is binary pdf
@@ -99,17 +125,46 @@ def scrape_website(url, done=None, depth=1):
         text = f" {url} {' '.join(soup.get_text(separator=' ').split())}"
 
     if depth == MAX_DEPTH:
-        return str(text)
+        return str(text), done
 
     sublinks = soup.find_all('a')
-    
+
     sublinks = [
         reformat_link(x.get('href') if x.get('href') else '', done[0])
         for x in sublinks
     ]
-    sublinks = remove_invalid_links(sublinks, done)
+    sublinks = [
+        sublink for sublink in remove_invalid_links(sublinks, banned_domains)
+        if is_same_domain(done[0], sublink)
+    ]
 
     for sublink in sublinks:
-        text += scrape_website(sublink, done, depth + 1)
-        done.append(sublink)
+        result = scrape_website(sublink, done, depth + 1, banned_domains)
+        text += result[0]
+        done = result[1]
+
+    #remove NUL (0x00) characters from string and return
+    return text.replace('0x00', ''), done
+
+
+def scrape_websites(website=None,
+                    banned_domains=None,
+                    company_name: str = None,
+                    company_city: str = None):
+    text = ''
+
+    done = []
+
+    if str(website) not in 'nan':
+        website_text, done = scrape_website(f"https://{website}", None, 1,
+                                    banned_domains)
+        text += website_text
+
+    links = scrape_google(company_name=company_name, company_city=company_city)
+    links.append(website)
+    links = remove_invalid_links(links, banned_domains)
+
+    for link in links:
+        website_text, done = scrape_website(link, done, 1, banned_domains)
+        text += website_text
     return text

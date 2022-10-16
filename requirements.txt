@@ -8,3 +8,5 @@ PyMuPDF>=1.20.2
 PyPDF2>=2.11.0
 pytesseract>=0.3.10
 sqlalchemy>=1.4.41
+requests-html>=0.10.0
+duckpy>=3.2.0
