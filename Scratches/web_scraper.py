@@ -1,33 +1,20 @@
-import io
+'''Scrapes the web for info related to a company'''
+
+from io import BytesIO
 import re
 
 import requests
 import fitz
 from PIL.Image import Image
 from bs4 import BeautifulSoup
-from pytesseract import pytesseract
-import requests
-from urllib.parse import urlparse
-from typing import List
-from requests_html import HTMLSession
+from pytesseract import pytesseract, image_to_string
 from duckpy import Client
-from sqlalchemy import true
 
 pytesseract.tesseract_cmd = r'C:\Program Files (x86)\Tesseract-OCR\tesseract'
 
 
-def get_source(url):
-    try:
-        session = HTMLSession()
-        response = session.get(url)
-        return response
-
-    except requests.exceptions.RequestException as e:
-        print(e)
-
-
 def scrape_google(company_name: str = None,
-                  company_city: str = None) -> List[str]:
+                  company_city: str = None) -> list[str]:
     '''
     Takes a company name and city and returns a list of related weblinks.
     '''
@@ -37,16 +24,17 @@ def scrape_google(company_name: str = None,
     client = Client()
 
     links = [result.url for result in client.search(webquery, True)[:10]]
-    #links = ['{uri.scheme}://{uri.netloc}/'.format(uri=urlparse(url)) for url in links]
     return links
 
 
 def read_pdf(content_stream):
+    '''
+    reads pdf content and returns text
+    '''
     pdf_file = fitz.open(stream=content_stream, filetype="pdf")
     text = ''
 
-    for page_index in range(len(pdf_file)):
-        page = pdf_file[page_index]
+    for page in pdf_file:
 
         # Handle Text
         text += page.get_text()
@@ -60,17 +48,18 @@ def read_pdf(content_stream):
             base_image = pdf_file.extract_image(xref)
             image_bytes = base_image['image']
 
-            with Image.open(io.BytesIO(image_bytes)) as image:
+            with Image.open(BytesIO(image_bytes)) as image:
                 # Read Image with OCR
                 try:
-                    image_text = pytesseract.image_to_string(image)
+                    image_text = image_to_string(image)
                     text += f'\n{image_text}'
-                except TypeError as TE:
-                    print(f'Error in extract_data\n{TE}')
+                except TypeError as type_error:
+                    print(f'Error in extract_data\n{type_error}')
     return str(text)
 
 
 def is_same_domain(url1, url2):
+    '''Checks if two urls are from the same domain'''
     if url1 is None or url2 is None:
         return False
     if re.match(r'^(?:http|ftp)s?://', url2) is not None:
@@ -79,6 +68,7 @@ def is_same_domain(url1, url2):
 
 
 def reformat_link(url, domain):
+    '''reformats a link to a full url'''
     if url is None or domain is None:
         raise ValueError('url or domain is None')
 
@@ -90,6 +80,7 @@ def reformat_link(url, domain):
 
 
 def remove_invalid_links(links, banned_domains):
+    '''removes invalid links from a list of links'''
     cleaned_links = []
 
     for link in links:
@@ -97,24 +88,27 @@ def remove_invalid_links(links, banned_domains):
             continue
         if link.endswith('/'):
             link = link[:-1]
-        if any([link for banned in banned_domains if banned in link]):
+        if any((link for banned in banned_domains if banned in link)):
             continue
         cleaned_links.append(link)
     return cleaned_links
 
 
-def scrape_website(url, done=None, depth=1, banned_domains=None):
-    MAX_DEPTH = 3
-    if done is None:
-        done = list()
-
+def scrape_website(url, done: tuple = None, depth=1, banned_domains=None):
+    '''
+    Scrapes a website for text and links. Calls itself recursively to scrape sublinks.
+    '''
+    max_depth = 3
     if 'http' not in url:
         url = f'https://{url}'
+    if done is None:
+        done = (url, )
 
     if url in done:
         return '', done
 
-    done.append(url if url[-1] != '/' else url[:-1])
+    #recreate tuple done with new url
+    done = done + (url, )
 
     html = requests.get(url, timeout=50).content
     # check if content is binary pdf
@@ -124,7 +118,7 @@ def scrape_website(url, done=None, depth=1, banned_domains=None):
         soup = BeautifulSoup(html, 'html.parser')
         text = f" {url} {' '.join(soup.get_text(separator=' ').split())}"
 
-    if depth == MAX_DEPTH:
+    if depth == max_depth:
         return str(text), done
 
     sublinks = soup.find_all('a')
@@ -137,9 +131,10 @@ def scrape_website(url, done=None, depth=1, banned_domains=None):
         sublink for sublink in remove_invalid_links(sublinks, banned_domains)
         if is_same_domain(done[0], sublink)
     ]
+    depth += 1
 
     for sublink in sublinks:
-        result = scrape_website(sublink, done, depth + 1, banned_domains)
+        result = scrape_website(sublink, done, depth, banned_domains)
         text += result[0]
         done = result[1]
 
@@ -151,13 +146,17 @@ def scrape_websites(website=None,
                     banned_domains=None,
                     company_name: str = None,
                     company_city: str = None):
+    '''
+    Takes a website or a company name and city and scrapes duckduckgo for more links.
+    Scrapes text from these links.
+    '''
     text = ''
 
-    done = []
+    done = ()
 
     if str(website) not in 'nan':
-        website_text, done = scrape_website(f"https://{website}", None, 1,
-                                    banned_domains)
+        website_text, done = scrape_website(f"https://{website}", done, 1,
+                                            banned_domains)
         text += website_text
 
     links = scrape_google(company_name=company_name, company_city=company_city)
