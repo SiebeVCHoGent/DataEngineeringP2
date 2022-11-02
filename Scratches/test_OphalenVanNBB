@@ -1,0 +1,28 @@
+import unittest
+from OphalenVanNBB import get_values_from_nbb
+
+class Test(unittest.TestCase):
+    def test_get_values_from_nbb(self):
+        self.assertEqual(len(get_values_from_nbb('BE0456832584')), 10)
+
+    def test_get_values_from_nbb_noBE(self):
+        self.assertEqual(len(get_values_from_nbb('0456832584')), 10)
+    
+    def test_get_values_from_nbb_wrongBE(self):
+        self.assertEqual(len(get_values_from_nbb('be0456832584')), 10)
+
+    def test_get_values_from_nbb_empty(self):
+        self.assertRaises(ValueError, get_values_from_nbb, "")
+    
+    def test_get_values_from_nbb_none(self):
+        self.assertRaises(ValueError, get_values_from_nbb, None)
+
+    def test_get_values_from_nbb_wrong(self):
+        self.assertRaises(ValueError, get_values_from_nbb, "test")
+    
+    def test_get_values_from_nbb_wrong2(self):
+        self.assertRaises(ValueError, get_values_from_nbb, "...")
+
+
+if __name__ == '__main__':
+    unittest.main()

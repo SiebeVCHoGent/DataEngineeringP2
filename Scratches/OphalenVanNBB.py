@@ -25,8 +25,13 @@ url_pdf = 'https://consult.cbso.nbb.be/api/external/broker/public/deposits/pdf/{
 
 def get_values_from_nbb(id):
 
+    if id is None:
+        raise ValueError("id is None")
+    if id == "":
+        raise ValueError("id is empty")
+
     # for bedrijf in bedrijven:
-    response = requests.get(api_url.format(str(id.replace('BE', ''))), headers=headers)
+    response = requests.get(api_url.format(str(id).upper().replace('BE', '')), headers=headers)
     data = response.json()
     verslagen = []
     for d in data['content']:

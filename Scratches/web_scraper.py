@@ -2,6 +2,7 @@
 
 from io import BytesIO
 import re
+from xml import dom
 
 import requests
 import fitz
@@ -18,6 +19,8 @@ def scrape_google(company_name: str = None,
     '''
     Takes a company name and city and returns a list of related weblinks.
     '''
+    if company_name is None or company_city is None or company_name == '' or company_city == '':
+        raise ValueError('company_name or company_city is None or empty')
 
     webquery = '"' + company_name + '"' + ' ' + company_city + ' ' + 'belgie'
 
@@ -69,8 +72,8 @@ def is_same_domain(url1, url2):
 
 def reformat_link(url, domain):
     '''reformats a link to a full url'''
-    if url is None or domain is None:
-        raise ValueError('url or domain is None')
+    if url is None or domain is None or url == '' or domain == '':
+        raise ValueError('url or domain is None or empty')
 
     url = url.split('#')[0]
     url = url.split('?')[0]
@@ -81,6 +84,11 @@ def reformat_link(url, domain):
 
 def remove_invalid_links(links, banned_domains):
     '''removes invalid links from a list of links'''
+
+    if links is None or banned_domains is None:
+        raise ValueError('links or banned_domainds is None')
+
+
     cleaned_links = []
 
     for link in links:

@@ -3,3 +3,4 @@ Scratches/.idea/inspectionProfiles/profiles_settings.xml
 .vscode/
 config.json
 Scratches/__pycache__/*
+*.csv

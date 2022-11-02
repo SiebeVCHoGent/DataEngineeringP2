@@ -38,6 +38,13 @@ natuurlijkKapitaal = {
 #als je van de synoniemen ook nog is de synoniemen wilt, dan maak je niet gebruik van een deepcopy van de dictionary
 
 def get_synoniemen(dictionary):
+
+    if dictionary == None:
+        raise ValueError("dictionary is None")
+    if dictionary == '':
+        raise ValueError("dictionary is empty")
+
+
     copydict = copy.deepcopy(dictionary)
     for key, value in dictionary.items():
         for woord in value:
