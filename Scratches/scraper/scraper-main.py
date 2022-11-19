@@ -23,7 +23,6 @@ base.metadata.reflect(engine)
 class Kmo(base):
     __table__ = base.metadata.tables['kmo']
 
-
 class Verslag(base):
     __table__ = base.metadata.tables['verslag']
 
@@ -33,6 +32,8 @@ class Jaarverslag(base):
 class Website(base):
     __table__ = base.metadata.tables['website']
 
+class Sector(base):
+    __table__ = base.metadata.tables['sector']
 
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -45,7 +46,11 @@ def refactor_csv(df):
     df['omzet'] = df['omzet'].replace('nb', 0)
     df['website'] = df['website'].str.replace('NaN', '')
     df['email'] = df['email'].str.replace('NaN', '')
-    df['NACE'] = df['NACE'].replace(1130, None)
+
+    #get all sector codes from db
+    sectors = [s.code for s in session.query(Sector).all()]
+    # if NACE is not in sectors replace NACE with None
+    df['NACE'] = df['NACE'].apply(lambda x: x if x in sectors else None)
 
     # get all kmos.ondernemingsnummer from database
     kmo_ondernemingsnummers = [kmo.ondernemingsnummer for kmo in session.query(Kmo).all()]
@@ -57,13 +62,14 @@ def refactor_csv(df):
 def scrape_kmo(data):
     print(data['ondernemingsnummer'], data['naam'])
     try:
+        JAAR = 2021
         # get data from nbb
-        jaarverslag = get_verslag_from_nbb(data['ondernemingsnummer'], jaar=2021)
+        jaarverslag = get_verslag_from_nbb(data['ondernemingsnummer'], jaar=JAAR)
         if jaarverslag is not None:
             jaarverslag['tekst'] = read_pdf(download_verslag(jaarverslag['url']))
 
         verslag = {}
-        verslag['jaar'] = jaarverslag['jaar']
+        verslag['jaar'] = JAAR
         verslag['ondernemingsnummer'] = data['ondernemingsnummer']
         verslag['omzet'] = data['omzet']
         verslag['aantalwerkenemers'] = data['werknemers']
@@ -85,10 +91,11 @@ def scrape_kmo(data):
         session.refresh(verslag)
         id = verslag.id
 
-        del jaarverslag['jaar']
-        jaarverslag = Jaarverslag(**jaarverslag)
-        jaarverslag.verslag = id
-        session.add(jaarverslag)
+        if jaarverslag is not None:
+            del jaarverslag['jaar']
+            jaarverslag = Jaarverslag(**jaarverslag)
+            jaarverslag.verslag = id
+            session.add(jaarverslag)
 
         website = Website(**website)
         website.verslag = id
