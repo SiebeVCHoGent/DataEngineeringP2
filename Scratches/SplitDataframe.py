@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-AANTAL_DELEN = 10
+AANTAL_DELEN = 5
 
 def split_dataframe_in_x(df, x):
     # split dataframe in x parts
@@ -29,12 +29,12 @@ def save_dataframe_as_csv(name, df):
     df.to_csv(name, index=False)
 
 #read kmos.csv
-df = pd.read_csv("kmos_4.csv", sep=",")
+df = pd.read_csv("kmos.csv", sep=",")
 #shuffle dataframe
 df = df.sample(frac=1).reset_index(drop=True)
 df = split_dataframe_in_x(df, AANTAL_DELEN)
 
 i = 1
 for df_part in df:
-    save_dataframe_as_csv(f"kmos_4_{i}.csv", df_part)
+    save_dataframe_as_csv(f"kmos_{i}.csv", df_part)
     i += 1
