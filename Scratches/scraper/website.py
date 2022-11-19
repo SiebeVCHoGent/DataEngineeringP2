@@ -128,11 +128,13 @@ def scrape_websites(website=None,
     text = ''
 
     done = ()
-
-    if str(website) not in 'nan':
-        website_text, done = scrape_website(f"https://{website}", done, 1,
-                                            banned_domains)
-        text += website_text
+    try:
+        if str(website) not in 'nan':
+            website_text, done = scrape_website(f"https://{website}", done, 1,
+                                                banned_domains)
+            text += website_text
+    except Exception as e:
+        print('!! Error with own website', str(e))
 
     links = scrape_google(company_name=company_name, company_city=company_city)
     links.append(website)
