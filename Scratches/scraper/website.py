@@ -114,7 +114,7 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
         done = result[1]
 
     #remove NUL (0x00) characters from string and return
-    return text.replace('0x00', ''), done
+    return str(text).replace('\x00', ''), done
 
 
 def scrape_websites(website=None,
