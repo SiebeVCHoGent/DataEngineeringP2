@@ -8,13 +8,16 @@ from sqlalchemy.orm import sessionmaker
 from nbb import get_verslag_from_nbb, download_verslag
 from pdf import read_pdf
 from website import scrape_websites
+from concurrent.futures import ThreadPoolExecutor
+from itertools import repeat
 
 # read banned-domains
 with open('data/banned_domains.txt', 'r') as f:
     banned_domains = f.read().splitlines()
 
 base = declarative_base()
-engine = create_engine('postgresql://postgres:postgres@vichogent.be:40037/postgres')
+engine = create_engine(
+    'postgresql://postgres:postgres@vichogent.be:40037/postgres')
 conn = engine.connect()
 metadata = MetaData(engine)
 base.metadata.reflect(engine)
@@ -23,17 +26,22 @@ base.metadata.reflect(engine)
 class Kmo(base):
     __table__ = base.metadata.tables['kmo']
 
+
 class Verslag(base):
     __table__ = base.metadata.tables['verslag']
+
 
 class Jaarverslag(base):
     __table__ = base.metadata.tables['jaarverslag']
 
+
 class Website(base):
     __table__ = base.metadata.tables['website']
 
+
 class Sector(base):
     __table__ = base.metadata.tables['sector']
+
 
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -53,20 +61,25 @@ def refactor_csv(df):
     df['NACE'] = df['NACE'].apply(lambda x: x if x in sectors else None)
 
     # get all kmos.ondernemingsnummer from database
-    kmo_ondernemingsnummers = [kmo.ondernemingsnummer for kmo in session.query(Kmo).all()]
+    kmo_ondernemingsnummers = [
+        kmo.ondernemingsnummer for kmo in session.query(Kmo).all()
+    ]
     # filter out kmos that are already in the database
     df = df[~df['ondernemingsnummer'].isin(kmo_ondernemingsnummers)]
     return df
 
 
-def scrape_kmo(data):
+def scrape_kmo(data, session_maker):
+    session = session_maker()
     print(data['ondernemingsnummer'], data['naam'])
     try:
         JAAR = 2021
         # get data from nbb
-        jaarverslag = get_verslag_from_nbb(data['ondernemingsnummer'], jaar=JAAR)
+        jaarverslag = get_verslag_from_nbb(data['ondernemingsnummer'],
+                                           jaar=JAAR)
         if jaarverslag is not None:
-            jaarverslag['tekst'] = read_pdf(download_verslag(jaarverslag['url']))
+            jaarverslag['tekst'] = read_pdf(
+                download_verslag(jaarverslag['url']))
 
         verslag = {}
         verslag['jaar'] = JAAR
@@ -77,12 +90,20 @@ def scrape_kmo(data):
         print('\tVERSLAG DONE')
 
         # get data from website
-        website_text = scrape_websites(data['website'], banned_domains, data['naam'], data['gemeente'])
+        website_text = scrape_websites(data['website'], banned_domains,
+                                       data['naam'], data['gemeente'])
         website = {'url': website_text.split(' ')[1], 'tekst': website_text}
         print('\tWEBSITE DONE')
 
         # add to database
-        kmo = Kmo(ondernemingsnummer=data['ondernemingsnummer'], naam=data['naam'], email=data['email'], telefoonnummer=data['telefoon'], adres=data['adres'], postcode=data['postcode'], beursgenoteerd=data['beursnotatie'], sector=data['NACE'])
+        kmo = Kmo(ondernemingsnummer=data['ondernemingsnummer'],
+                  naam=data['naam'],
+                  email=data['email'],
+                  telefoonnummer=data['telefoon'],
+                  adres=data['adres'],
+                  postcode=data['postcode'],
+                  beursgenoteerd=data['beursnotatie'],
+                  sector=data['NACE'])
         session.add(kmo)
 
         verslag = Verslag(**verslag)
@@ -114,6 +135,6 @@ if __name__ == '__main__':
     print(df.info())
 
     # Start Scraping
-    df.apply(scrape_kmo, axis=1)
-
-
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for _, data in df.iterrows():
+            executor.submit(scrape_kmo, data, Session)

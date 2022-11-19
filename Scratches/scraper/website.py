@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from pytesseract import pytesseract
 from duckpy import Client
 
-from scraper.pdf import read_pdf
+from pdf import read_pdf
 
 pytesseract.tesseract_cmd = r'C:\Program Files (x86)\Tesseract-OCR\tesseract'
 
