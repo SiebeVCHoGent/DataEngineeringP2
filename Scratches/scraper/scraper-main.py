@@ -45,6 +45,7 @@ def refactor_csv(df):
     df['omzet'] = df['omzet'].replace('nb', 0)
     df['website'] = df['website'].str.replace('NaN', '')
     df['email'] = df['email'].str.replace('NaN', '')
+    df['NACE'] = df['NACE'].replace(1130, None)
 
     # get all kmos.ondernemingsnummer from database
     kmo_ondernemingsnummers = [kmo.ondernemingsnummer for kmo in session.query(Kmo).all()]
@@ -67,13 +68,15 @@ def scrape_kmo(data):
         verslag['omzet'] = data['omzet']
         verslag['aantalwerkenemers'] = data['werknemers']
         verslag['balanstotaal'] = data['activa']
+        print('\tVERSLAG DONE')
 
         # get data from website
         website_text = scrape_websites(data['website'], banned_domains, data['naam'], data['gemeente'])
         website = {'url': website_text.split(' ')[1], 'tekst': website_text}
+        print('\tWEBSITE DONE')
 
         # add to database
-        kmo = Kmo(ondernemingsnummer=data['ondernemingsnummer'], naam=data['naam'], email=data['email'], telefoonnummer=data['telefoon'], adres=data['adres'], postcode=data['postcode'], beursgenoteerd=data['beursnotatie'])
+        kmo = Kmo(ondernemingsnummer=data['ondernemingsnummer'], naam=data['naam'], email=data['email'], telefoonnummer=data['telefoon'], adres=data['adres'], postcode=data['postcode'], beursgenoteerd=data['beursnotatie'], sector=data['NACE'])
         session.add(kmo)
 
         verslag = Verslag(**verslag)

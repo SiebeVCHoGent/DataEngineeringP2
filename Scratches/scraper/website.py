@@ -1,5 +1,4 @@
 '''Scrapes the web for info related to a company'''
-import math
 import re
 
 import requests
@@ -92,15 +91,15 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
         soup = BeautifulSoup(html, 'html.parser')
         text = f" {url} {' '.join(soup.get_text(separator=' ').split())}"
 
-    if depth == max_depth:
+    if depth == max_depth or len(done) > 100:
         return str(text), done
 
     soup = BeautifulSoup(html, 'html.parser')
     sublinks = soup.find_all('a')
 
     sublinks = [
-        reformat_link(x.get('href') if x.get('href') else '', done[0])
-        for x in sublinks if x.get('href') != ''
+        reformat_link(x.get('href'), done[0])
+        for x in sublinks if x.get('href')
     ]
 
     sublinks = [
@@ -115,7 +114,7 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
         done = result[1]
 
     #remove NUL (0x00) characters from string and return
-    return text.replace('0x00', ''), done
+    return str(text).replace('\x00', ''), done
 
 
 def scrape_websites(website=None,
@@ -129,11 +128,13 @@ def scrape_websites(website=None,
     text = ''
 
     done = ()
-
-    if str(website) not in 'nan':
-        website_text, done = scrape_website(f"https://{website}", done, 1,
-                                            banned_domains)
-        text += website_text
+    try:
+        if str(website) not in 'nan':
+            website_text, done = scrape_website(f"https://{website}", done, 1,
+                                                banned_domains)
+            text += website_text
+    except Exception as e:
+        print('!! Error with own website', str(e))
 
     links = scrape_google(company_name=company_name, company_city=company_city)
     links.append(website)
