@@ -85,7 +85,7 @@ def scrape_kmo(data, session_maker):
         verslag['jaar'] = JAAR
         verslag['ondernemingsnummer'] = data['ondernemingsnummer']
         verslag['omzet'] = data['omzet']
-        verslag['aantalwerkenemers'] = data['werknemers']
+        verslag['aantalwerknemers'] = data['werknemers']
         verslag['balanstotaal'] = data['activa']
         print('\tVERSLAG DONE')
 
@@ -130,7 +130,7 @@ def scrape_kmo(data, session_maker):
 
 if __name__ == '__main__':
     # read from csv
-    df = pd.read_csv('data/kmos_5.csv')
+    df = pd.read_csv('data/kmos_1.csv')
     df = refactor_csv(df)
     print(df.info())
 
