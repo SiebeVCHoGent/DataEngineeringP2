@@ -5,10 +5,11 @@ import requests
 from bs4 import BeautifulSoup
 from pytesseract import pytesseract
 from duckpy import Client
+from langdetect import detect
 
 from pdf import read_pdf
 
-pytesseract.tesseract_cmd = r'C:\Program Files (x86)\Tesseract-OCR\tesseract'
+pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
 
 
 def scrape_google(company_name: str = None,
@@ -71,6 +72,10 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
     '''
     Scrapes a website for text and links. Calls itself recursively to scrape sublinks.
     '''
+
+    NederlandseText = ''
+    EngelseText = ''
+
     max_depth = 3
     if 'http' not in url:
         url = f'https://{url}'
@@ -78,7 +83,7 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
         done = (url, )
 
     if url in done:
-        return '', done
+        return '','', done
 
     #recreate tuple done with new url
     done = done + (url, )
@@ -87,12 +92,22 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
     # check if content is binary pdf
     if html[:4] == b'%PDF':
         text = read_pdf(html)
+        l = detect(text)
+        if(l == 'nl'):
+            NederlandseText += text
+        elif(l == 'en'):
+            EngelseText += text
     else:
         soup = BeautifulSoup(html, 'html.parser')
         text = f" {url} {' '.join(soup.get_text(separator=' ').split())}"
+        l = detect(text)
+        if(l == 'nl'):
+            NederlandseText += text
+        elif(l == 'en'):
+            EngelseText += text
 
     if depth == max_depth or len(done) > 100:
-        return str(text), done
+        return str(NederlandseText), str(EngelseText), done
 
     soup = BeautifulSoup(html, 'html.parser')
     sublinks = soup.find_all('a')
@@ -109,12 +124,13 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
     depth += 1
 
     for sublink in sublinks:
-        result = scrape_website(sublink, done, depth, banned_domains)
-        text += result[0]
-        done = result[1]
+        result1, result2, ddone = scrape_website(sublink, done, depth, banned_domains)
+        NederlandseText += result1
+        EngelseText += result2
+        done = ddone
 
     #remove NUL (0x00) characters from string and return
-    return str(text).replace('\x00', ''), done
+    return str(NederlandseText).replace('\x00', ''),str(EngelseText).replace('\x00', ''), done
 
 
 def scrape_websites(website=None,
@@ -125,14 +141,18 @@ def scrape_websites(website=None,
     Takes a website or a company name and city and scrapes duckduckgo for more links.
     Scrapes text from these links.
     '''
-    text = ''
+
+    nltxt = ''
+    entxt = ''
+
 
     done = ()
     try:
         if str(website) not in 'nan':
-            website_text, done = scrape_website(f"https://{website}", done, 1,
+            nlwebtxt,enwebtxt, done = scrape_website(f"https://{website}", done, 1,
                                                 banned_domains)
-            text += website_text
+            nltxt += nlwebtxt
+            entxt += enwebtxt
     except Exception as e:
         print('!! Error with own website', str(e))
 
@@ -141,6 +161,7 @@ def scrape_websites(website=None,
     links = remove_invalid_links(links, banned_domains)
 
     for link in links[:1]:
-        website_text, done = scrape_website(link, done, 1, banned_domains)
-        text += website_text
-    return text
+        nlwebtxt,enwebtxt, done = scrape_website(link, done, 1, banned_domains)
+        nltxt += nlwebtxt
+        entxt += enwebtxt
+    return nltxt,entxt

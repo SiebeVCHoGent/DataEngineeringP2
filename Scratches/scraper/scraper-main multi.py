@@ -130,7 +130,7 @@ def scrape_kmo(data, session_maker):
 
 if __name__ == '__main__':
     # read from csv
-    df = pd.read_csv('data/kmos_1.csv')
+    df = pd.read_csv('data/kmos_4_1.csv')
     df = refactor_csv(df)
     print(df.info())
 

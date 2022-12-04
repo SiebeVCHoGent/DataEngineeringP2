@@ -3,7 +3,7 @@ from io import BytesIO
 from PIL import Image
 from pytesseract import *
 
-pytesseract.tesseract_cmd = r'C:\Program Files (x86)\Tesseract-OCR\tesseract'
+pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
 
 
 def read_pdf(content_stream):
