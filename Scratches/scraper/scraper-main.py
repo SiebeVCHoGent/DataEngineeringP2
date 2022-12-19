@@ -1,4 +1,5 @@
 import time
+import traceback
 
 import pandas as pd
 from sqlalchemy import MetaData, create_engine
@@ -72,13 +73,17 @@ def scrape_kmo(data):
         verslag['jaar'] = JAAR
         verslag['ondernemingsnummer'] = data['ondernemingsnummer']
         verslag['omzet'] = data['omzet']
-        verslag['aantalwerkenemers'] = data['werknemers']
+        verslag['werknemers'] = data['werknemers']
         verslag['balanstotaal'] = data['activa']
         print('\tVERSLAG DONE')
 
         # get data from website
-        website_text = scrape_websites(data['website'], banned_domains, data['naam'], data['gemeente'])
-        website = {'url': website_text.split(' ')[1], 'tekst': website_text}
+        nl_website_text, en_website_text = scrape_websites(data['website'], banned_domains, data['naam'], data['gemeente'])
+
+        if nl_website_text == '':
+            website = {'url': en_website_text.split(' ')[1], 'nltekst': nl_website_text, 'entekst': en_website_text}
+        else:
+            website = {'url': nl_website_text.split(' ')[1], 'nltekst': nl_website_text, 'entekst': en_website_text}
         print('\tWEBSITE DONE')
 
         # add to database
@@ -109,7 +114,7 @@ def scrape_kmo(data):
 
 if __name__ == '__main__':
     # read from csv
-    df = pd.read_csv('data/kmos_5.csv')
+    df = pd.read_csv('data/kmos_4_1.csv')
     df = refactor_csv(df)
     print(df.info())
 
