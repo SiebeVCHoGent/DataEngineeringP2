@@ -1,6 +1,6 @@
 #using sqlalchemy iterate over all the websites in the data base
 import time
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import MetaData, create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -9,7 +9,7 @@ from website import scrape_website
 import pandas as pd
 
 # read banned-domains
-with open('data/banned_domains.txt', 'r') as f:
+with open('banned_domains.txt', 'r') as f:
     banned_domains = f.read().splitlines()
 
 #remove empty lines out of banned_domains
@@ -31,7 +31,7 @@ class Verslag(base):
 Session = sessionmaker(bind=engine)
 session = Session()
 
-
+'''
 
 #er zijn  15000 verslagen
 print("geef minbound")
@@ -100,6 +100,56 @@ for verslag in verslagen:
         with open('data/banned_domains.txt', 'a') as f:
             f.write("\n" + str(website.url))
 
+'''
 
+verslagen = session.query(Verslag).all()
+
+for verslag in verslagen:
+    while(True):
+        try:
+            website = session.query(Website).filter(Website.verslag == verslag.id).first()
+            break
+        except:
+            try:
+                conn =  engine.connect()
+                website = session.query(Website).filter(Website.verslag == verslag.id).first()
+                break
+            except:
+                #sleep 5 seconds
+                time.sleep(5)
+                continue
+
+    print("trying to make tsvector for ", website.url)
+
+    if(website.en_vector is not None or website.nl_vector is not None):
+        continue
+
+    if(website.nltekst is None):
+        #make a tsvector of the entekst and put it in en_vector
+        if(website.entekst is not None):
+            website.en_vector = func.to_tsvector('english', website.entekst)
+    elif (website.nltekst is not None):
+        #make a tsvector of the nltekst and put it in nl_vector
+        website.nl_vector = func.to_tsvector('dutch', website.nltekst)
+    else:
+        continue
+
+    print(website.en_vector)
+    print(website.nl_vector)
+'''
+    while(True):
+            try:
+                session.commit()
+                break
+            except:
+                try:
+                    conn =  engine.connect()
+                    session.rollback()
+                    break
+                except:
+                    #sleep 5 seconds
+                    time.sleep(5)
+                    continue
+'''
 session.close()
 
