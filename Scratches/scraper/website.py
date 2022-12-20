@@ -2,6 +2,7 @@
 import re
 
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from pytesseract import pytesseract
 from duckpy import Client
@@ -11,6 +12,7 @@ from pdf import read_pdf
 
 pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
 
+urllib3.disable_warnings()
 
 def scrape_google(company_name: str = None,
                   company_city: str = None) -> list[str]:
@@ -88,11 +90,17 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
     #recreate tuple done with new url
     done = done + (url, )
 
-    html = requests.get(url, timeout=50).content
+    print("requesting " + url)
+
+    html = requests.get(url, timeout=10, verify=False).content
     # check if content is binary pdf
     if html[:4] == b'%PDF':
         text = read_pdf(html)
-        l = detect(text)
+        try:
+            l = detect(text)
+        except Exception as e:
+            print('!! Error with language detection', str(e))
+            return '', '', done
         if(l == 'nl'):
             NederlandseText += text
         elif(l == 'en'):
@@ -100,7 +108,12 @@ def scrape_website(url, done: tuple = (), depth=1, banned_domains=None):
     else:
         soup = BeautifulSoup(html, 'html.parser')
         text = f" {url} {' '.join(soup.get_text(separator=' ').split())}"
-        l = detect(text)
+        try:
+            l = detect(text)
+        except Exception as e:
+            print('!! Error with language detection', str(e))
+            return '', '', done
+            
         if(l == 'nl'):
             NederlandseText += text
         elif(l == 'en'):
