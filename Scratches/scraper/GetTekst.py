@@ -1,6 +1,6 @@
 #using sqlalchemy iterate over all the websites in the data base
 import time
-from sqlalchemy import MetaData, create_engine, func
+from sqlalchemy import MetaData, create_engine, func, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -9,12 +9,12 @@ from website import scrape_website
 import pandas as pd
 
 # read banned-domains
-with open('banned_domains.txt', 'r') as f:
-    banned_domains = f.read().splitlines()
-
-#remove empty lines out of banned_domains
-banned_domains = [x for x in banned_domains if x != '']
-banned_domains = [x for x in banned_domains if x != ' ']
+# with open('banned_domains.txt', 'r') as f:
+#     banned_domains = f.read().splitlines()
+#
+# #remove empty lines out of banned_domains
+# banned_domains = [x for x in banned_domains if x != '']
+# banned_domains = [x for x in banned_domains if x != ' ']
 
 base = declarative_base()
 engine = create_engine('postgresql://postgres:postgres@vichogent.be:40037/postgres', pool_recycle=300)
@@ -102,40 +102,55 @@ for verslag in verslagen:
 
 '''
 
-verslagen = session.query(Verslag).all()
+verslagen = [v[0] for v in session.query(Website.verslag).filter(Website.nl_vector == None, and_(Website.en_vector == None), and_(Website.nltekst != None), and_(Website.entekst) != None).order_by(Website.verslag).all()]
 
+print(1251 in verslagen)
+print(verslagen)
+
+count = 0
 for verslag in verslagen:
+    count += 1
     while(True):
         try:
-            website = session.query(Website).filter(Website.verslag == verslag.id).first()
+            website = session.query(Website).filter(Website.verslag == verslag).first()
             break
         except:
             try:
-                conn =  engine.connect()
-                website = session.query(Website).filter(Website.verslag == verslag.id).first()
+                conn = engine.connect()
+                website = session.query(Website).filter(Website.verslag == verslag).first()
                 break
             except:
                 #sleep 5 seconds
                 time.sleep(5)
                 continue
 
-    print("trying to make tsvector for ", website.url)
+    print(count, ". Trying to make tsvector for ", website.url, verslag)
 
     if(website.en_vector is not None or website.nl_vector is not None):
         continue
 
-    if(website.nltekst is None):
-        #make a tsvector of the entekst and put it in en_vector
-        if(website.entekst is not None):
-            website.en_vector = func.to_tsvector('english', website.entekst)
-    elif (website.nltekst is not None):
-        #make a tsvector of the nltekst and put it in nl_vector
+    if(website.entekst is not None):
+
+        # make a tsvector of the entekst and put it in en_vector
+        website.en_vector = func.to_tsvector('english', website.entekst)
+
+    if (website.nltekst is not None):
+        # make a tsvector of the nltekst and put it in nl_vector
         website.nl_vector = func.to_tsvector('dutch', website.nltekst)
-    else:
+
+    if (website.entekst is None and website.nltekst is None):
         continue
 
-    print(website.en_vector)
-    print(website.nl_vector)
+    print("EN: ", website.en_vector)
+    print("NL: ", website.nl_vector)
+
+    try:
+        session.commit()
+    except:
+        session.rollback()
+        continue
+
+
 '''
     while(True):
             try:
